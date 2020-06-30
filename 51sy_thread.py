@@ -21,10 +21,44 @@ AP = 0.025 #片肉切り込み量
 STANDARD_LENGTH = 4
 EFFECTIVE_THREAD_LENGTH = 2.5
 
-print("aaa")
+
+DBNAME = "screw_standard"
+SCREW_NAME = '"R1/8"'
 
 import math
+import sqlite3
+import pandas as pd
 
+class ScrewStandard:
+    
+    def __init__(self,dbname):
+        self.dbname = dbname
+        self.name = None
+        self.p = None
+        self.d_D = None
+        self.d1_D1 = None
+        self.a = None
+        self.f = None
+        self.l = None
+        self.t = None
+
+    def search_parameter(self,screw_name):
+        conn = sqlite3.connect(self.dbname)
+        c = conn.cursor()
+        df = pd.read_sql(f"select name,p,d_D,d1_D1,a,f,l,t from R where name={screw_name}", conn)
+        conn.commit()
+        conn.close()
+        print(self.name)
+        
+        self.name = df.at[0,"name"]
+        self.p = df.at[0,"p"]
+        self.d_D = df.at[0,"d_D"]
+        self.d1_D1 = df.at[0,"d1_D1"]
+        self.a = df.at[0,"a"]
+        self.f = df.at[0,"f"]
+        self.l = df.at[0,"l"]
+        self.t = df.at[0,"t"]
+        print(self.name)
 
 class ThreadInsert:
     def __init__(self,s):
@@ -141,6 +175,8 @@ R{-self.h if self.work_geometry.thread_type==0 else self.h}F{float(self.work_geo
 
 
 def main():
+    screw_standard = ScrewStandard(DBNAME)
+    screw_standard.search_parameter(SCREW_NAME)
     if THREAD_NAME == 1:
         thread_process = TaperThreadProcess()
     else:
