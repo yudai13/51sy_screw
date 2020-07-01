@@ -1,12 +1,19 @@
 """パラメータ設定"""
 
+SCREW_NUMB = 1       #管用平行ねじ=0、管用テーパねじ=1、メートルねじ=2、ユニファイねじ=3、アメリカ管用テーパねじ=4
+THREAD_TYPE=1  #おねじ=0、めねじ=1
+DATABASE_NAME = "screw_standard"
+SCREW_NAME = '"R1/8"'
+
+"""
+
 HEAD = 1        #HEAD1=1、HEAD2=2
 SP = 1          #SP1加工=1、SP2加工=2
-POSITION = 20   #ワーク左側端面をz=0.0とした時の右側端面のz位置
+
 MARGIN = 2      #位置決め余裕の距離
 
-THREAD_NAME = 1       #管用平行ねじ=0、管用テーパねじ=1、メートルねじ=2、ユニファイねじ=3、アメリカ管用テーパねじ=4
-THREAD_TYPE = 0      #おねじ=0、めねじ=1
+
+
 OUTER_DIAMETER =15    #おねじ外径、もしくはめねじの谷径
 ROOT_DIAMETER = 7.77  #おねじの谷径、もしくはめねじの内径
 LENGTH = 10
@@ -18,23 +25,20 @@ VELOCITY = 60
 FEED =0.2
 AP = 0.025 #片肉切り込み量
 
-
-DBNAME = "screw_standard"
-SCREW_NAME = '"R1/8"'
+"""
 
 
-LENGTH = 1
-THREAD_NAME=1
-THREAD_TYPE=1
 
 
-import math
+
+#import math
 import sqlite3
 import pandas as pd
 
 class ScrewStandard: 
-    def __init__(self,dbname):
-        self.dbname = dbname
+    def __init__(self,thread_type):
+
+        self.thread_type = thread_type
         self.name = None
         self.p = None
         self.d_D = None
@@ -44,13 +48,13 @@ class ScrewStandard:
         self.l = None
         self.t = None
 
-    def search_parameter(self,screw_name):
-        conn = sqlite3.connect(self.dbname)
+    def search_parameter(self,database_name, screw_numb,screw_name):
+        table = ["G","R","M","U","N"]
+        conn = sqlite3.connect(database_name)
         c = conn.cursor()
-        df = pd.read_sql(f"select name,p,d_D,d1_D1,a,f,l,t from R where name={screw_name}", conn)
+        df = pd.read_sql(f"select name,p,d_D,d1_D1,a,f,l,t from {table[screw_numb]} where name={screw_name}", conn)
         conn.commit()
         conn.close()
-        print(self.name)
         
         self.name = df.at[0,"name"]
         self.p = df.at[0,"p"]
@@ -60,35 +64,31 @@ class ScrewStandard:
         self.f = df.at[0,"f"]
         self.l = df.at[0,"l"]
         self.t = df.at[0,"t"]
-        print(self.name)
 
-class ThreadInsert:
-    def __init__(self,s):
-        self.s = s  #ホルダ端からチップ刃先までの距離(mm)
 
 class WorkGeometry:
-    def __init__(self,length,tread_name,thread_type):
+    def __init__(self,length):
         self.screw_standard = ScrewStandard(DBNAME)
         self.length = length
         self.thread_name = tread_name
         self.thread_type = thread_type
         
+"""
 class CuttingCondition:
-    def __init__(self,velocity,feed,ap,thread_type,outer_diameter,inner_diameter):
+    def __init__(self,velocity,feed,ap,outer_diameter,inner_diameter):
         self.work_geometry = WorkGeometry
         self.rpm = 1000*velocity/(math.pi * outer_diameter) if selfwork_geometry.thread_type==0 else 1000*velocity/(math.pi * inner_diameter)
         self.feed = feed
         self.ap = ap
                                   
 class ThreadProcess(object):
-    def __init__(self,thread_insert,cutting_condition,work_geometry,head,sp,margin,position):
+    def __init__(self,thread_insert,cutting_condition,work_geometry,head,sp,margin):
         self.thread_insert = thread_insert
         self.cutting_condition = cutting_condition
         self.work_geometry = work_geometry
         self.head = head
         self.sp = sp
         self.margin = margin
-        self.position = position
         
 
     def tool_select(self):
@@ -169,10 +169,13 @@ R{-self.h if self.work_geometry.thread_type==0 else self.h}F{float(self.work_geo
 {thread_cycle}"
         print(program3)
 
-
+"""
 def main():
-    screw_standard = ScrewStandard(DBNAME)
-    screw_standard.search_parameter(SCREW_NAME)
+    screw_standard = ScrewStandard(THREAD_TYPE)
+    screw_standard.search_parameter(DATABASE_NAME,SCREW_NUMB,SCREW_NAME)
+    print(screw_standard.p)
+
+"""    
     work_geometry = WorkGeometry(LENGTH,THREAD_NAME,THREAD_TYPE)
     p=work_geometry.screw_standard.p
     print(p)
@@ -184,6 +187,6 @@ def main():
     thread_process.positioning()
     thread_process.cutting()
     thread_process.returning()
-   
+"""   
 if __name__ == "__main__":
     main()
