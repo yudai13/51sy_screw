@@ -30,7 +30,7 @@ class Setting:
     def __init__(self,head,sp,margin):
         pass
     
-#具体
+#具体  テーパねじと共用
 class ThreadSetting(Setting):
     def __init__(self,head,sp,margin,s):
         self.head = head
@@ -72,11 +72,33 @@ class GStandard(Standard):
 
 #具体
 class RStandard(Standard):
-    def __init__(self,a):
-        pass
+    def __init__(self,database_name,thread_type):
+        self.database_name = database_name
+        self.thread_type = thread_type
+        self.name = None
+        self.p = 0
+        self.d_D = 0
+        self.d1_D1 = 0
+        self.a = 0
+        self.f = 0
+        self.l = 0
+        self.t = 0
 
-    def search_standard(self):
-        pass
+    def search_standard(self,screw_name):
+        conn = sqlite3.connect(self.database_name)
+        c = conn.cursor()
+        df = pd.read_sql(f"select name,p,d_D,d1_D1 from R where name='{screw_name}'", conn)
+        conn.commit()
+        conn.close()
+        
+        self.name = df.at[0,"id"]
+        self.p = df.at[0,"p"]
+        self.d_D = df.at[0,"d_D"]
+        self.d1_D1 = df.at[0,"d1_D1"]
+        self.a = df.at[0,"a"]
+        self.f = df.at[0,"f"]
+        self.l = df.at[0,"l"]
+        self.t = df.at[0,"t"]
 
 #具体
 class MStandard(Standard):
@@ -126,6 +148,16 @@ class ThreadWork(Work):
 
        self.standard = standard
        self.cutting_length = cutting_length
+
+
+#具体　テーパねじ
+class TeperThreadWork(Work):
+    def __init__(self,length,diameter,standard):
+        self.length = length
+        self.diameter = diameter
+
+        self.standard = standard
+       
         
 
 
@@ -220,7 +252,36 @@ G28{'U0Y0' if program.setting.head==1 else 'U0'}\n"
         print(self.program4)
 
 
+class TaperThreadProcess(ThreadProcess):
+    
+    def positioning(self,program):
+        male_start_x = program.work.standard.d_D - (program.work.standard.a + program.setting.margin)/16
+        female_start_x = program.work.standard.d1_D1+ program.setting.margin/16
+       
+        self.program2 = f"Z{float(program.work.length+program.setting.margin if program.setting.sp==1 else -program.setting.margin)}\
+{'Y0.0' if program.setting.head==1 else ''}M{91 if program.setting.sp==1 else 191}\n\
+X{round(float(male_start_x+1.0 if program.work.standard.thread_type==0 else female_start_x-1.0),3)}\n"
+        return self.program2
 
+
+    def cutting(self,program):
+        if program.work.standard.thread_type==0:
+            for n in range(1,int((program.work.standard.d_D - program.work.standard.d1_D1)//(2*program.cutting_condition.ap))+1):
+                self.total_path.append(f"X{round((program.work.standard.d_D - 2*n*program.cutting_condition.ap),3)}\n")
+            self.total_path.append(f"X{round(program.work.standard.d1_D1,3)}")
+    
+        else:
+            for n in range(1,int((program.work.standard.d_D-program.work.standard.d1_D1)//(2*program.cutting_condition.ap))+1):
+                self.total_path.append(f"X{round((program.work.standard.d1_D1 + 2*n*program.cutting_condition.ap),3)}\n")
+            self.total_path.append(f"X{round(program.work.standard.d_D,3)}")
+        thread_cycle = "".join(self.total_path)
+       
+        self.program3 = f"G92X{float(program.work.standard.d_D if program.work.standard.thread_type==0 else program.work.standard.d1_D1)}\
+Z{float(program.work.length-program.work.cutting_length-program.setting.s if program.setting.sp==1 else program.work.length+program.setting.s)}\
+R{13}\
+F{float(program.work.standard.p)}\n\
+{thread_cycle}"
+        return self.program3
 
 #NCプログラムを表す(コンテキスト)
 class Program:
