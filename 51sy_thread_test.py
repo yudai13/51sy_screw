@@ -2,7 +2,7 @@
 パラメータ
 """
 THREAD_TYPE = 1
-SCREW_NAME = "g1/16"
+SCREW_NAME = "R1/16"
 DATABASENAME = "screw_standard"
 HEAD = 2    #HEAD1=1、HEAD2=2
 SP = 1      #SP1加工=1、SP2加工=2
@@ -84,14 +84,14 @@ class RStandard(Standard):
         self.l = 0
         self.t = 0
 
-    def search_standard(self,screw_name):
+    def search_parameter(self,screw_name):
         conn = sqlite3.connect(self.database_name)
         c = conn.cursor()
-        df = pd.read_sql(f"select name,p,d_D,d1_D1 from R where name='{screw_name}'", conn)
+        df = pd.read_sql(f"select name,p,d_D,d1_D1,a,f,t from R where name='{screw_name}'", conn)
         conn.commit()
         conn.close()
         
-        self.name = df.at[0,"id"]
+        self.name = df.at[0,"name"]
         self.p = df.at[0,"p"]
         self.d_D = df.at[0,"d_D"]
         self.d1_D1 = df.at[0,"d1_D1"]
@@ -99,13 +99,14 @@ class RStandard(Standard):
         self.f = df.at[0,"f"]
         self.l = df.at[0,"l"]
         self.t = df.at[0,"t"]
+        
 
 #具体
 class MStandard(Standard):
     def __init__(self,a):
         pass
 
-    def search_standard(self):
+    def search_parameter(self):
         pass
 
 
@@ -115,7 +116,7 @@ class UStandard(Standard):
         pass
 
 
-    def search_standard(self):
+    def search_parameter(self):
         pass
 
 
@@ -125,7 +126,7 @@ class NStandard(Standard):
         pass
 
 
-    def search_standard(self):
+    def search_parameter(self):
         pass
 
         
@@ -265,6 +266,11 @@ X{round(float(male_start_x+1.0 if program.work.standard.thread_type==0 else fema
 
 
     def cutting(self,program):
+        male_start_x = program.work.standard.d_D - (program.work.standard.a + program.setting.margin)/16
+        female_start_x = program.work.standard.d1_D1+ program.setting.margin/16
+        l = program.work.standard.a+program.work.standard.f+program.setting.margin
+        h = round(float(0.5*l/16,3))
+        
         if program.work.standard.thread_type==0:
             for n in range(1,int((program.work.standard.d_D - program.work.standard.d1_D1)//(2*program.cutting_condition.ap))+1):
                 self.total_path.append(f"X{round((program.work.standard.d_D - 2*n*program.cutting_condition.ap),3)}\n")
@@ -276,9 +282,9 @@ X{round(float(male_start_x+1.0 if program.work.standard.thread_type==0 else fema
             self.total_path.append(f"X{round(program.work.standard.d_D,3)}")
         thread_cycle = "".join(self.total_path)
        
-        self.program3 = f"G92X{float(program.work.standard.d_D if program.work.standard.thread_type==0 else program.work.standard.d1_D1)}\
-Z{float(program.work.length-program.work.cutting_length-program.setting.s if program.setting.sp==1 else program.work.length+program.setting.s)}\
-R{13}\
+        self.program3 = f"G92X{round(float(male_start_x if program.work.standard.thread_type==0 else female_start_x),3)}\
+Z{float(program.work.length-program.work.cutting_length-program.setting.s-l if program.setting.sp==1 else program.work.length+program.setting.s+l)}\
+R{-h if program.work.standard.thread_type==0 else h }\
 F{float(program.work.standard.p)}\n\
 {thread_cycle}"
         return self.program3
@@ -309,18 +315,34 @@ class Program:
 
 
 def main():
-    setting = ThreadSetting(HEAD,SP,MARGIN,S)
-    standard = GStandard(DATABASENAME,THREAD_TYPE)
-    standard.search_parameter(SCREW_NAME)
-    work = ThreadWork(LENGTH,DIAMETER,standard,CUTTING_LENGTH)
-    cutting_condition = ThreadCuttingCondition(work,VELOCITY,FEED,AP)
-    
-    thread_program = Program(setting,work,cutting_condition,ThreadProcess())
-    thread_program.tool_select()
-    thread_program.positioning()
-    thread_program.cutting()
-    thread_program.returning()
-    thread_program.output_program()
+    if SCREW_NAME[0]=="g":
+        setting = ThreadSetting(HEAD,SP,MARGIN,S)   #共通
+        standard = GStandard(DATABASENAME,THREAD_TYPE)
+        standard.search_parameter(SCREW_NAME)
+        work = ThreadWork(LENGTH,DIAMETER,standard,CUTTING_LENGTH)
+        cutting_condition = ThreadCuttingCondition(work,VELOCITY,FEED,AP)
+            
+       
+        thread_program = Program(setting,work,cutting_condition,ThreadProcess())
+        thread_program.tool_select()
+        thread_program.positioning()
+        thread_program.cutting()
+        thread_program.returning()
+        thread_program.output_program()
+
+    elif SCREW_NAME[0]=="R":
+        setting = ThreadSetting(HEAD,SP,MARGIN,S)   #共通
+        standard = RStandard(DATABASENAME,THREAD_TYPE)
+        standard.search_parameter(SCREW_NAME)
+        work = TaperThreadWork(LENGTH,DIAMETER,standard)
+        cutting_condition = ThreadCuttingCondition(work,VELOCITY,FEED,AP)
+            
+        thread_program = Program(setting,work,cutting_condition,TaperThreadProcess())
+        thread_program.tool_select()
+        thread_program.positioning()
+        thread_program.cutting()
+        thread_program.returning()
+        thread_program.output_program()
 
 
 if __name__ == "__main__":
