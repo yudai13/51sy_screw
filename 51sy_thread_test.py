@@ -1,13 +1,13 @@
 """
 パラメータ
 """
-THREAD_TYPE = 1
-SCREW_NAME = "R1/16"
+THREAD_TYPE = 0
+SCREW_NAME = "R3/8"
 DATABASENAME = "screw_standard"
 HEAD = 2    #HEAD1=1、HEAD2=2
 SP = 1      #SP1加工=1、SP2加工=2
 MARGIN = 2      #位置決め余裕の距離
-LENGTH = 10
+LENGTH = 50
 DIAMETER =10
 PITCH = 0.8
 S = 1
@@ -87,7 +87,7 @@ class RStandard(Standard):
     def search_parameter(self,screw_name):
         conn = sqlite3.connect(self.database_name)
         c = conn.cursor()
-        df = pd.read_sql(f"select name,p,d_D,d1_D1,a,f,t from R where name='{screw_name}'", conn)
+        df = pd.read_sql(f"select name,p,d_D,d1_D1,a,f,l,t from R where name='{screw_name}'", conn)
         conn.commit()
         conn.close()
         
@@ -152,7 +152,7 @@ class ThreadWork(Work):
 
 
 #具体　テーパねじ
-class TeperThreadWork(Work):
+class TaperThreadWork(Work):
     def __init__(self,length,diameter,standard):
         self.length = length
         self.diameter = diameter
@@ -266,24 +266,26 @@ X{round(float(male_start_x+1.0 if program.work.standard.thread_type==0 else fema
 
 
     def cutting(self,program):
-        male_start_x = program.work.standard.d_D - (program.work.standard.a + program.setting.margin)/16
-        female_start_x = program.work.standard.d1_D1+ program.setting.margin/16
         l = program.work.standard.a+program.work.standard.f+program.setting.margin
-        h = round(float(0.5*l/16,3))
+        h = round(float(0.5*l/16),3)
+        male_start_x = program.work.standard.d_D - (program.work.standard.a + program.setting.margin)/16
+        male_end_x = male_start_x + 2*h
+        female_start_x = program.work.standard.d1_D1+ program.setting.margin/16
+        female_end_x = female_start_x - 2*h
         
         if program.work.standard.thread_type==0:
             for n in range(1,int((program.work.standard.d_D - program.work.standard.d1_D1)//(2*program.cutting_condition.ap))+1):
-                self.total_path.append(f"X{round((program.work.standard.d_D - 2*n*program.cutting_condition.ap),3)}\n")
-            self.total_path.append(f"X{round(program.work.standard.d1_D1,3)}")
+                self.total_path.append(f"X{round((male_end_x - 2*n*program.cutting_condition.ap),3)}\n")
+            self.total_path.append(f"X{round(male_end_x-(program.work.standard.d_D - program.work.standard.d1_D1),3)}")
     
         else:
             for n in range(1,int((program.work.standard.d_D-program.work.standard.d1_D1)//(2*program.cutting_condition.ap))+1):
-                self.total_path.append(f"X{round((program.work.standard.d1_D1 + 2*n*program.cutting_condition.ap),3)}\n")
-            self.total_path.append(f"X{round(program.work.standard.d_D,3)}")
+                self.total_path.append(f"X{round((female_end_x + 2*n*program.cutting_condition.ap),3)}\n")
+            self.total_path.append(f"X{round(female_end_x+(program.work.standard.d_D-program.work.standard.d1_D1),3)}")
         thread_cycle = "".join(self.total_path)
        
-        self.program3 = f"G92X{round(float(male_start_x if program.work.standard.thread_type==0 else female_start_x),3)}\
-Z{float(program.work.length-program.work.cutting_length-program.setting.s-l if program.setting.sp==1 else program.work.length+program.setting.s+l)}\
+        self.program3 = f"G92X{round(float(male_end_x if program.work.standard.thread_type==0 else female_end_x),3)}\
+Z{round(float(program.work.length + program.setting.margin - l if program.setting.sp==1 else -program.work.setting.margin+l),3)}\
 R{-h if program.work.standard.thread_type==0 else h }\
 F{float(program.work.standard.p)}\n\
 {thread_cycle}"
